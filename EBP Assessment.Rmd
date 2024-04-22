@@ -60,32 +60,42 @@ commute_plot <- tm_shape(cook_commute) +
   tm_fill("estimate", n = 4, palette = "Oranges", style = "jenks", 
           title = "Hours per Week") + 
   tm_borders(alpha = 0.4) + 
-  tm_layout(legend.text.size = 0.6, legend.title.size = 1.0,
+  tm_layout(legend.text.size = 0.6, legend.title.size = 0.9,
             legend.position = c("left", "center"), frame = FALSE,
-            main.title = "Average Commute Time in Cook County 2020",
-            main.title.size = 0.85) +
-  tm_scale_bar(position = c("left", "bottom"))
+            main.title = "Average Commute Time in Cook County 2016-2020",
+            main.title.size = 0.8) +
+  tm_credits(
+    "Source: US Census Bureau, 2016-\n2020 American Community Survey",
+    position = c("left", "bottom"))
 
 med_inc_plot <- tm_shape(cook_med_inc) + 
   tm_fill("estimate", n = 4, palette = "Greens", style = "jenks", 
-          title = "2020 Inflation-adjusted dollars") + 
+          title = "2020 Inflation-\nadjusted dollars") + 
   tm_borders(alpha = 0.4) + 
   tm_layout(legend.text.size = 0.6, legend.title.size = 0.9,
             legend.position = c("left", "center"), frame = FALSE,
-            main.title = "Median Household Income in Cook County 2020",
+            main.title = "Median Household Income in Cook County 2016-2020",
             main.title.size = 0.85) +
   tm_scale_bar(position = c("left", "bottom"))
 
 tmap_arrange(commute_plot, med_inc_plot, ncol = 2)
 ```
 
-```{r}
+# Problem 2: Show whether income predicts the fuel efficiency of a household’s vehicles using NHTS 
 
+I found the variables for median household income, HHFAMINC, and Fuel Economy.gov EIA-Derived 55/45 fuel economy, FEGEMPG, from the [NHTS code book browser](https://nhts.ornl.gov/tables09/CodebookBrowser.aspx).
+```{r}
+nhts17 <- read_csv("vehpub.csv")
 ```
 
+```{r}
+nhts17 <- nhts17 %>% 
+  select(HHFAMINC, FEGEMPG)
+```
 
 ```{r}
-
-
+ggplot(nhts17, aes(x = HHFAMINC, y = FEGEMPG)) +
+  geom_point()
 ```
+
 
