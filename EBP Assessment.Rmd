@@ -14,6 +14,7 @@ library(tidyverse)
 library(tidycensus)
 library(sf)
 library(tmap)
+library(stargazer)
 options(tigris_use_cache = TRUE) # cache census shapefiles
 ```
 
@@ -90,12 +91,21 @@ nhts17 <- read_csv("vehpub.csv")
 
 ```{r}
 nhts17 <- nhts17 %>% 
-  select(HHFAMINC, FEGEMPG)
+  select(HHFAMINC, FEGEMPG) %>% 
+  # remove observations that did not report income
+  filter(!(HHFAMINC %in% c("-9", "-8", "-7"))) %>%
+  mutate(HHFAMINC = factor(HHFAMINC, ordered = TRUE))
+
+print(as.character(levels(nhts17$HHFAMINC)))
 ```
 
 ```{r}
-ggplot(nhts17, aes(x = HHFAMINC, y = FEGEMPG)) +
-  geom_point()
+model <- lm("FEGEMPG ~ HHFAMINC", data = nhts17)
+
+names(model$coefficients)[2:11] <- as.character(levels(nhts17$HHFAMINC))[2:11]
+
+stargazer(model, type = "text", header = FALSE,
+          title = "Relationship between Household Income and\nFuel Efficiency of Household Vehicle", dep.var.labels = "FEGEMPG")
 ```
 
 
