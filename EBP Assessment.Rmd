@@ -9,13 +9,13 @@ output: html_document
 knitr::opts_chunk$set(echo = FALSE)
 ```
 
-```{r}
+```{r sources}
 # My data sources are the 2016-2020 American Community Survey and the 2017 National Household Travel Survey. You can reproduce my ACS data inputs by acquiring a Census API key and copying my code (an advantage of tidycensus). If you do not already have one, you can request a Census API key here: https://api.census.gov/data/key_signup.html
 # Additional information about using tidycensus is available in the documentation: https://walker-data.com/tidycensus/articles/basic-usage.html
 
 # For the 2017 NHTS data, I downloaded the data here https://nhts.ornl.gov/downloads
 # I then looked at the codebook here https://nhts.ornl.gov/tables09/CodebookBrowser.aspx
-# and found that the variables I needed are related to the household's vehicle, so I only loaded that csv file.
+# and found that the variables I needed are related to the household's vehicle, so I only loaded that csv file called "vehpub."
 
 # Additional details about using the data are described in the comments associated with their relevant code chunks.
 ```
