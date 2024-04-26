@@ -6,10 +6,21 @@ output: html_document
 ---
 
 ```{r setup, include=FALSE, message=FALSE, warning=FALSE}
-knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_chunk$set(echo = FALSE)
 ```
 
-```{r load-libraries}
+```{r}
+# My data sources are the 2016-2020 American Community Survey and the 2017 National Household Travel Survey. You can reproduce my ACS data inputs by acquiring a Census API key and copying my code (an advantage of tidycensus). If you do not already have one, you can request a Census API key here: https://api.census.gov/data/key_signup.html
+# Additional information about using tidycensus is available in the documentation: https://walker-data.com/tidycensus/articles/basic-usage.html
+
+# For the 2017 NHTS data, I downloaded the data here https://nhts.ornl.gov/downloads
+# I then looked at the codebook here https://nhts.ornl.gov/tables09/CodebookBrowser.aspx
+# and found that the variables I needed are related to the household's vehicle, so I only loaded that csv file.
+
+# Additional details about using the data are described in the comments associated with their relevant code chunks.
+```
+
+```{r load-libraries, message=FALSE}
 library(tidyverse)
 library(tidycensus)
 library(sf)
@@ -18,18 +29,20 @@ library(stargazer)
 options(tigris_use_cache = TRUE) # cache census shapefiles
 ```
 
-# Problem 1: Map average commute time and median HH income for census tracts in a metro area using ACS
-
-First, I look for variables related to commute time in the ACS
+## Problem 1: Map average commute time and median HH income for census tracts in a metro area using ACS
 ```{r load-acs}
+# First, I look for variables related to commute time in the ACS
 acs20 <- load_variables(2020, "acs5", cache = TRUE)
 view(acs20)
 ```
 
-I found B08303_001: Travel Time to Work, and found the definition in the Census's code book [here](https://www2.census.gov/programs-surveys/acs/tech_docs/subject_definitions/2020_ACSSubjectDefinitions.pdf). The units are minutes per week.
+```{r , message = FALSE}
+# I found B08303_001: Travel Time to Work, and found the definition in the 
+# Census's code book here
+# (https://www2.census.gov/programs-surveys/acs/tech_docs/subject_definitions/2020_ACSSubjectDefinitions.pdf) 
+# The units are minutes per week.
 
-I'll choose Cook County, IL since that's where I live.
-```{r}
+# I'll choose Cook County, IL since that's where I live.
 cook_commute <- get_acs(geography = "tract", 
                         variables = c(commute_time = "B08303_001"),
                         state = "Illinois",
@@ -38,8 +51,10 @@ cook_commute <- get_acs(geography = "tract",
                         geometry = TRUE)
 ```
 
-Next, I found B19013_001: Median Household Income in the Past 12 months, so I'll pull that data.
-```{r}
+
+```{r load-income, message = FALSE}
+# Next, I found B19013_001: Median Household Income in the Past 12 months, 
+# so I'll pull that data.
 cook_med_inc <- get_acs(geography = "tract", 
                         variables = c(med_income = "B19013_001"),
                         state = "Illinois",
@@ -48,15 +63,21 @@ cook_med_inc <- get_acs(geography = "tract",
                         geometry = TRUE)
 ```
 
-I tried plotting the commute data, but got an error that there's an empty geometry I need to remove first. I found [this post](https://gis.stackexchange.com/a/447255) on how to check for and remove empty geometries.
-```{r}
+
+```{r filter-empty}
+# I tried plotting the commute data, but got an error that there's an 
+# empty geometry I need to remove first. I found this post 
+# (https://gis.stackexchange.com/a/447255) on how to check for and remove
+# empty geometries.
+
 # Filter out empty geometries
 cook_commute <- cook_commute[!st_is_empty(cook_commute), ]
 
 cook_med_inc <- cook_med_inc[!st_is_empty(cook_med_inc), ]
 ```
 
-```{r}
+```{r plot-maps, out.width='100%'}
+# Plot average commute time and median household income in Cook County 
 commute_plot <- tm_shape(cook_commute) + 
   tm_fill("estimate", n = 4, palette = "Oranges", style = "jenks", 
           title = "Hours per Week") + 
@@ -81,31 +102,53 @@ med_inc_plot <- tm_shape(cook_med_inc) +
 
 tmap_arrange(commute_plot, med_inc_plot, ncol = 2)
 ```
+To answer this problem, I used data from the Census Bureau's [2016-2020 American Community Survey](https://www.census.gov/data/developers/data-sets/acs-5year.2020.html#list-tab-1806015614). I accessed the data using R's [tidycensus package](https://walker-data.com/tidycensus/index.html).
 
-# Problem 2: Show whether income predicts the fuel efficiency of a household’s vehicles using NHTS 
+The plots above show that the average commute time in Cook County, IL is positively correlated with median household income. As household income increases, I predict that mean commute time also increases.
 
-I found the variables for median household income, HHFAMINC, and Fuel Economy.gov EIA-Derived 55/45 fuel economy, FEGEMPG, from the [NHTS code book browser](https://nhts.ornl.gov/tables09/CodebookBrowser.aspx).
-```{r}
+The longest commute times are in the census tracts around the Loop in Chicago and in the farther-out suburbs. These areas also tend to have higher household incomes. Similarly, the areas with the shortest commute times tend to be in the western and southern parts of Chicago, which also tend to have low household incomes.
+
+One possible reason for this positive relationship between commute time and household income in the suburbs is that higher income people are more likely to own cars, which allows them to live farther away from their place of work, but leads to longer commutes. In the areas around the Loop, commute time and household income could be positively correlated because traffic around the loop is more congested, but wealthier people live there for the employment opportunities and access to amenities.
+
+## Problem 2: Show whether income predicts the fuel efficiency of a household’s vehicles using NHTS 
+```{r load-nhts, message=FALSE}
+# I found the variables for median household income, HHFAMINC, and Fuel
+# Economy.gov EIA-Derived 55/45 fuel economy, FEGEMPG, from the NHTS code
+# book browser(https://nhts.ornl.gov/tables09/CodebookBrowser.aspx).
 nhts17 <- read_csv("vehpub.csv")
 ```
 
-```{r}
+```{r clean-nhts}
+# Subset data to only include HH income and fuel economy, drop 
+# observations that did not report income, and convert HHFAMINC to 
+# categorical
 nhts17 <- nhts17 %>% 
   select(HHFAMINC, FEGEMPG) %>% 
-  # remove observations that did not report income
   filter(!(HHFAMINC %in% c("-9", "-8", "-7"))) %>%
   mutate(HHFAMINC = factor(HHFAMINC, ordered = TRUE))
-
-print(as.character(levels(nhts17$HHFAMINC)))
 ```
 
-```{r}
+```{r model, results = "asis"}
+# Run regression, rename coefficients, and style output table
 model <- lm("FEGEMPG ~ HHFAMINC", data = nhts17)
 
 names(model$coefficients)[2:11] <- as.character(levels(nhts17$HHFAMINC))[2:11]
 
-stargazer(model, type = "text", header = FALSE,
-          title = "Relationship between Household Income and\nFuel Efficiency of Household Vehicle", dep.var.labels = "FEGEMPG")
+html_table <- stargazer(model, type = "html", header = FALSE,
+          title = "Relationship between Household Income and Fuel Efficiency of Household Vehicle", 
+          dep.var.labels = "FEGEMPG")
 ```
+---
+The data I used to answer this problem are from the [2017 National Household Travel Survey (NHTS)](https://nhts.ornl.gov/) conducted by the Federal Highway Administration.
 
+To determine whether income predicts the fuel efficiency of a household's vehicle, I ran a regression of fuel economy on a vector of dummy variables for each level of household income. The regression model is:
+
+$$FEGEMPG = \alpha + \gamma HHFAMINC + \epsilon$$
+where FEGEMPG is the Fuel Economy.gov EIA-Derived 55/45 fuel economy, $\alpha$ is the intercept, $\gamma HHFAMINC$ is a vector of dummy variables representing levels of household income from below \$10,000 to over \$200,000, and $\epsilon$ is the error term. The category of income below \$10,000 is left out as the reference group. The household income levels that each code corresponds to are available to view [here](https://nhts.ornl.gov/tables09/CodebookPage.aspx?id=1224) and are omitted for space.
+
+I find that household income does predict a household's vehicle's fuel economy. The reported F-statistic is statistically significant at a significance level of 1%. This means that I can reject the null hypothesis, which states that the coefficients of each household income level equal zero. Instead, we have evidence in favor of an alternative hypothesis that the predicted effect of household income on a household's vehicle's fuel economy is not zero.
+
+Looking more closely at each of the estimated coefficients, households with incomes between \$10,000 at \$15,000 (coded as category 02) have the highest predicted fuel economy relative to households earning less than \$10,000. Specifically, I can predict that the average vehicle owned by a household earning between \$10,000 and \$15,000 gets two additional miles per gallon compared with the average vehicle owned by a household earning less than \$10,000. This could be because households in this income range who own cars are more likely to own newer cars with better fuel economy. 
+
+Interestingly, households in income categories above \$15,000 were not substantially more likely to own more fuel efficient cars than households earning less than \$10,000. This could be because higher income household are more likely to buy newer, more fuel efficient cars, but this is cancelled out by the tendency to also buy larger, less fuel efficient cars like SUVs.
 
